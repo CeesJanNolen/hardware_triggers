@@ -156,14 +156,16 @@ class HardwareTriggersPlugin :
         if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) device.isExternal else null
 
     private fun connectedDevices(): List<Map<String, Any?>> =
-        InputDevice.getDeviceIds()
-            .mapNotNull { InputDevice.getDevice(it) }
-            .filter { !it.isVirtual && it.sources and KEY_SOURCES != 0 }
-            .map {
-                mapOf(
-                    "id" to it.id,
-                    "name" to it.name,
-                    "isExternal" to isExternal(it),
+        InputDevice.getDeviceIds().toList()
+            .mapNotNull { id: Int -> InputDevice.getDevice(id) }
+            .filter { device: InputDevice ->
+                !device.isVirtual && (device.sources and KEY_SOURCES) != 0
+            }
+            .map { device: InputDevice ->
+                mapOf<String, Any?>(
+                    "id" to device.id,
+                    "name" to device.name,
+                    "isExternal" to isExternal(device),
                 )
             }
 
