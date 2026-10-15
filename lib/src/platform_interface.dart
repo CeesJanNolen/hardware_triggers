@@ -76,6 +76,9 @@ abstract class HardwareTriggersPlatform extends PlatformInterface {
   Future<List<TriggerDevice>> connectedDevices();
 }
 
+/// Talks to the native plugin. On a platform where the plugin is not
+/// registered (iOS, desktop, web) every call degrades: interception is
+/// unsupported, no devices are listed and nothing is thrown.
 class MethodChannelHardwareTriggers extends HardwareTriggersPlatform {
   MethodChannelHardwareTriggers({
     MethodChannel? methodChannel,
@@ -90,11 +93,21 @@ class MethodChannelHardwareTriggers extends HardwareTriggersPlatform {
   @override
   Stream<NativeKeyEvent> get keyEvents => _keyEvents ??= _events
       .receiveBroadcastStream()
+      .handleError((_) {}, test: (e) => e is MissingPluginException)
       .map((e) => NativeKeyEvent.fromMap(e as Map<Object?, Object?>));
+
+  /// Null when the plugin is not registered on this platform.
+  Future<T?> _invoke<T>(String method, [Object? arguments]) async {
+    try {
+      return await _methods.invokeMethod<T>(method, arguments);
+    } on MissingPluginException {
+      return null;
+    }
+  }
 
   @override
   Future<void> startIntercepting(List<InterceptRule> rules) =>
-      _methods.invokeMethod<void>('startIntercepting', {
+      _invoke<void>('startIntercepting', {
         'rules': [
           for (final rule in rules)
             for (final code in codesForLogicalKey(rule.key))
@@ -107,18 +120,16 @@ class MethodChannelHardwareTriggers extends HardwareTriggersPlatform {
       });
 
   @override
-  Future<void> stopIntercepting() =>
-      _methods.invokeMethod<void>('stopIntercepting');
+  Future<void> stopIntercepting() => _invoke<void>('stopIntercepting');
 
   @override
   Future<bool> isInterceptSupported() async =>
-      await _methods.invokeMethod<bool>('isInterceptSupported') ?? false;
+      await _invoke<bool>('isInterceptSupported') ?? false;
 
   @override
   Future<List<TriggerDevice>> connectedDevices() async {
     final devices =
-        await _methods.invokeMethod<List<Object?>>('connectedDevices') ??
-        const [];
+        await _invoke<List<Object?>>('connectedDevices') ?? const [];
     return [
       for (final d in devices.cast<Map<Object?, Object?>>())
         TriggerDevice(

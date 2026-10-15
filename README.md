@@ -22,6 +22,12 @@ Each layer works without the one above it.
 4. `package:hardware_triggers/riverpod.dart`: ready providers for the above
    plus `interceptProvider(rules)`, which intercepts while watched.
 
+`TriggerCatalog` lists the accessories verified against the package (today:
+the AB Shutter3 shutter button) with what each button sends and which Press
+Kinds are reliable. Show it in a settings screen so users know what is
+supported; `TriggerCatalog.lookup(device)` tells whether a connected device is
+one of them. Other devices may or may not work depending on what they send.
+
 ## Interception
 
 Volume keys never reach Flutter reliably on Android (flutter/flutter#71144),
@@ -74,15 +80,20 @@ intercepts `dispatchKeyEvent` there, before Flutter's view. No change to
 `MainActivity` is needed. Device info comes from the `InputDevice` of the
 event; `isExternal` needs Android 10 and is null below that.
 
-**iOS / iPadOS, unverified**: iOS never hands volume keys to apps and hides
+**iOS / iPadOS, not registered**: the Swift side in `ios/` is written but has
+never been compiled (no Mac yet), so the pubspec registers Android only and an
+iOS build pulls in no native code from this package. There
+`isInterceptSupported()` is false, `connectedDevices()` is empty and
+`startIntercepting` is a no-op; only the Flutter key path delivers events.
+Once verified, restore the `ios:` entry under `flutter.plugin.platforms`.
+The design: iOS never hands volume keys to apps and hides
 paired HID devices from them, so the plugin watches
 `AVAudioSession.outputVolume`. A rise is Volume Up, a drop is Volume Down.
 Under `consume` a hidden `MPVolumeView` sets the level back to a baseline
 (kept between 10% and 90% so a press is always detectable) and keeps the
 system popup away. Device info is never available, so `externalOnly` rules
-match nothing, and `connectedDevices` is empty. This side was written without
-a Mac to compile or run it. Keyboard-mode remotes work on iOS through the
-Flutter key path without any of this.
+match nothing, and `connectedDevices` is empty. Keyboard-mode remotes work on
+iOS through the Flutter key path without any of this.
 
 ## Wire format
 

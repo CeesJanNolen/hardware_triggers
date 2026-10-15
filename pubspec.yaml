@@ -1,7 +1,7 @@
 name: hardware_triggers
 description: "Physical key Triggers (Bluetooth shutter buttons, remotes, volume rockers) as a stream of Input Events, Press Patterns and app-defined Actions."
-version: 0.2.0
-homepage: https://github.com/ceesjannolen/hardware_triggers
+version: 0.3.0
+homepage: https://github.com/CeesJanNolen/hardware_triggers
 
 environment:
   sdk: ^3.9.0
@@ -39,8 +39,10 @@ flutter:
       android:
         package: dev.ceesjan.hardware_triggers
         pluginClass: HardwareTriggersPlugin
-      ios:
-        pluginClass: HardwareTriggersPlugin
+      # iOS is written (ios/) but has never been compiled: no Mac yet. It is
+      # left out of the registration so apps that build for iOS pull in no
+      # untested native code. On iOS the Dart API reports interception as
+      # unsupported and only the Flutter key path delivers events.
 
   # To add assets to your plugin package, add an assets section, like this:
   # assets:

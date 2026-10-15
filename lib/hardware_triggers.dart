@@ -11,3 +11,4 @@ export 'src/key_codes.dart';
 export 'src/platform_interface.dart'
     show HardwareTriggersPlatform, NativeKeyEvent;
 export 'src/press_pattern.dart';
+export 'src/trigger_catalog.dart';
