@@ -13,9 +13,9 @@ Each layer works without the one above it.
    `LogicalKeyboardKey`, down/up, timestamp, source and (on Android) the
    `TriggerDevice` that sent it.
 2. `PressPatternRecognizer`: a stream transformer turning key-down events into
-   single and double presses. Optimistic by default: every press is reported
-   as a single press at once, and a second press within the window follows as
-   a double press, so the consumer undoes what it did for the single. Pass
+   single, double and triple presses. Optimistic by default: every press is
+   reported at once as single, double or triple according to its place in the
+   sequence, so the consumer undoes what it did for the earlier presses. Pass
    `optimistic: false` to wait the window instead.
 3. `Binding<A>`: a map from `PressSpec` (key plus press kind) to your action
    type. `binding.bind(patterns)` is a `Stream<A>`.

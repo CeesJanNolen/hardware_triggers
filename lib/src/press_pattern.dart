@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'input_event.dart';
 
-enum PressKind { single, double }
+enum PressKind { single, double, triple }
 
 /// A single or double press of one key, recognised from Input Events.
 class PressPattern {
@@ -38,61 +38,78 @@ class PressPattern {
 }
 
 /// Turns key-down Input Events into Press Patterns. Key-up events and other
-/// keys' presses in between are ignored.
+/// keys' presses in between are ignored. Presses of one key count as a
+/// sequence while each follows the previous within [pressWindow]; a sequence
+/// ends after a triple press, so a fourth quick press starts a new one.
 ///
-/// Optimistic (the default): every press is reported as a single press at
-/// once; a second press of the same key within [doubleWindow] is then
-/// reported as a double press. The consumer undoes the single press it just
-/// acted on. No press is ever delayed.
+/// Optimistic (the default): every press is reported at once, as single,
+/// double or triple according to its place in the sequence. The consumer
+/// undoes what it did for the earlier presses. No press is ever delayed.
 ///
-/// Delayed: a press is held for [doubleWindow] and reported as single if no
-/// second press follows, or as double if one does.
+/// Delayed: a sequence is held until [pressWindow] passes without another
+/// press, or until it reaches a triple, and is then reported once.
 class PressPatternRecognizer
     extends StreamTransformerBase<InputEvent, PressPattern> {
   const PressPatternRecognizer({
-    this.doubleWindow = const Duration(milliseconds: 350),
+    this.pressWindow = const Duration(milliseconds: 350),
     this.optimistic = true,
   });
 
-  final Duration doubleWindow;
+  final Duration pressWindow;
   final bool optimistic;
+
+  static const _maxPresses = 3;
+
+  static PressKind _kind(int count) => switch (count) {
+    1 => PressKind.single,
+    2 => PressKind.double,
+    _ => PressKind.triple,
+  };
 
   @override
   Stream<PressPattern> bind(Stream<InputEvent> stream) {
-    final lastDown = <LogicalKeyboardKey, InputEvent>{};
+    final sequences = <LogicalKeyboardKey, ({int count, InputEvent last})>{};
     final pending = <LogicalKeyboardKey, Timer>{};
     late final StreamController<PressPattern> controller;
     StreamSubscription<InputEvent>? subscription;
 
-    PressPattern pattern(InputEvent e, PressKind kind) =>
-        PressPattern(key: e.key, kind: kind, at: e.at, device: e.device);
+    PressPattern pattern(InputEvent e, int count) => PressPattern(
+      key: e.key,
+      kind: _kind(count),
+      at: e.at,
+      device: e.device,
+    );
+
+    int advance(InputEvent event) {
+      final previous = sequences[event.key];
+      final continues =
+          previous != null &&
+          previous.count < _maxPresses &&
+          event.at.difference(previous.last.at) <= pressWindow;
+      final count = continues ? previous.count + 1 : 1;
+      sequences[event.key] = (count: count, last: event);
+      return count;
+    }
 
     void onEvent(InputEvent event) {
       if (event.phase != KeyPhase.down) return;
       final key = event.key;
+      final count = advance(event);
 
       if (optimistic) {
-        final previous = lastDown.remove(key);
-        if (previous != null &&
-            event.at.difference(previous.at) <= doubleWindow) {
-          controller.add(pattern(event, PressKind.double));
-        } else {
-          lastDown[key] = event;
-          controller.add(pattern(event, PressKind.single));
-        }
+        controller.add(pattern(event, count));
         return;
       }
 
-      final timer = pending.remove(key);
-      if (timer != null) {
-        timer.cancel();
-        controller.add(pattern(event, PressKind.double));
-      } else {
-        pending[key] = Timer(doubleWindow, () {
-          pending.remove(key);
-          controller.add(pattern(event, PressKind.single));
-        });
+      pending.remove(key)?.cancel();
+      if (count == _maxPresses) {
+        controller.add(pattern(event, count));
+        return;
       }
+      pending[key] = Timer(pressWindow, () {
+        pending.remove(key);
+        controller.add(pattern(event, count));
+      });
     }
 
     controller = StreamController<PressPattern>(

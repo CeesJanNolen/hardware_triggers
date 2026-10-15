@@ -1,3 +1,7 @@
+## 0.2.0
+
+- Triple press as a third Press Kind. `doubleWindow` renamed to `pressWindow`; it now bounds the gap between consecutive presses.
+
 ## 0.1.0
 
 - Input Event stream merging native interception and Flutter key events.

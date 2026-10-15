@@ -52,12 +52,36 @@ void main() {
       );
     });
 
-    test('a third quick press starts over as a single', () async {
+    test('a third quick press is a triple', () async {
       expect(
         describe(await run([press(up, 0), press(up, 100), press(up, 200)])),
-        'up:single@0 up:double@100 up:single@200',
+        'up:single@0 up:double@100 up:triple@200',
       );
     });
+
+    test('a fourth quick press starts a new sequence', () async {
+      expect(
+        describe(
+          await run([
+            press(up, 0),
+            press(up, 100),
+            press(up, 200),
+            press(up, 300),
+          ]),
+        ),
+        'up:single@0 up:double@100 up:triple@200 up:single@300',
+      );
+    });
+
+    test(
+      'the window is measured from the previous press, not the first',
+      () async {
+        expect(
+          describe(await run([press(up, 0), press(up, 300), press(up, 600)])),
+          'up:single@0 up:double@300 up:triple@600',
+        );
+      },
+    );
 
     test('different keys do not pair up', () async {
       expect(
@@ -120,6 +144,24 @@ void main() {
         controller.add(press(up, 200));
         async.elapse(const Duration(seconds: 1));
         expect(describe(seen), 'up:double@200');
+      });
+    });
+
+    test('a triple is reported at once, with no single or double', () {
+      fakeAsync((async) {
+        final controller = StreamController<InputEvent>();
+        final seen = <PressPattern>[];
+        controller.stream.transform(recognizer).listen(seen.add);
+
+        controller.add(press(up, 0));
+        async.elapse(const Duration(milliseconds: 100));
+        controller.add(press(up, 100));
+        async.elapse(const Duration(milliseconds: 100));
+        controller.add(press(up, 200));
+        async.flushMicrotasks();
+        expect(describe(seen), 'up:triple@200');
+        async.elapse(const Duration(seconds: 1));
+        expect(describe(seen), 'up:triple@200');
       });
     });
 

@@ -10,6 +10,8 @@ class PressSpec {
 
   const PressSpec.double(LogicalKeyboardKey key) : this(key, PressKind.double);
 
+  const PressSpec.triple(LogicalKeyboardKey key) : this(key, PressKind.triple);
+
   final LogicalKeyboardKey key;
   final PressKind kind;
 
