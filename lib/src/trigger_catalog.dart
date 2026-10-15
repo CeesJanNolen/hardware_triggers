@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'input_event.dart';
@@ -8,7 +9,7 @@ class CatalogButton {
   const CatalogButton({
     required this.label,
     required this.key,
-    this.reliableKinds = const {PressKind.single},
+    required this.reliable,
   });
 
   /// How the button is referred to in the app ("the button", "iOS side").
@@ -17,8 +18,15 @@ class CatalogButton {
   /// The key the button sends, as the app sees it.
   final LogicalKeyboardKey key;
 
-  /// Press Kinds that were verified to be recognised reliably on this button.
-  final Set<PressKind> reliableKinds;
+  /// Per platform, the Press Kinds verified to be recognised reliably on
+  /// this button. A platform that is missing has not been verified.
+  final Map<TargetPlatform, Set<PressKind>> reliable;
+
+  Set<PressKind> reliableOn(TargetPlatform platform) =>
+      reliable[platform] ?? const {};
+
+  /// Reliable Press Kinds on the platform the app runs on.
+  Set<PressKind> get reliableKinds => reliableOn(defaultTargetPlatform);
 }
 
 /// A Trigger that was verified against this package. Apps show the catalog
@@ -48,22 +56,28 @@ class TriggerCatalog {
   const TriggerCatalog._();
 
   /// "AB Shutter3": the common Bluetooth camera shutter. One button, pairs
-  /// as a keyboard and sends Volume Up. Verified on Android 14 and 17 with
-  /// single, double and triple presses about 160 ms apart.
+  /// as a keyboard and sends Volume Up, and keeps the key down while held.
+  /// Verified on Android 14 and 17: single, double and triple presses about
+  /// 160 ms apart, and holds of two to three seconds. Not yet verified on
+  /// iOS, where the package itself is unverified.
   static final abShutter3 = CatalogEntry(
     name: 'AB Shutter3',
     buttons: [
       CatalogButton(
         label: 'button',
         key: LogicalKeyboardKey.audioVolumeUp,
-        reliableKinds: const {
-          PressKind.single,
-          PressKind.double,
-          PressKind.triple,
+        reliable: const {
+          TargetPlatform.android: {
+            PressKind.single,
+            PressKind.double,
+            PressKind.triple,
+            PressKind.long,
+          },
         },
       ),
     ],
-    notes: 'Pairs as a keyboard. Needs Android 10 or newer to be told apart '
+    notes:
+        'Pairs as a keyboard. Needs Android 10 or newer to be told apart '
         'from the volume rocker of the phone or tablet.',
   );
 

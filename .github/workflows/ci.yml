@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  FLUTTER_VERSION: 3.38.0
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  # The native sides have no app of their own, so a throwaway app is created
+  # around the package and built. Green means the Kotlin or Swift compiles;
+  # behaviour is verified on devices, see the README.
+  android-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: hardware_triggers
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Create a throwaway app around the package
+        run: |
+          flutter create --platforms=android --org dev.ceesjan -t app ci_app
+          cd ci_app
+          flutter pub add hardware_triggers --path ../hardware_triggers
+      - run: flutter build apk --debug
+        working-directory: ci_app
+
+  ios-compile:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: hardware_triggers
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Create a throwaway app around the package
+        run: |
+          flutter create --platforms=ios --org dev.ceesjan -t app ci_app
+          cd ci_app
+          flutter pub add hardware_triggers --path ../hardware_triggers
+      - run: flutter build ios --no-codesign
+        working-directory: ci_app

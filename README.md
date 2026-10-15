@@ -12,11 +12,14 @@ Each layer works without the one above it.
 1. `HardwareTriggers.instance.events`: a `Stream<InputEvent>` with the
    `LogicalKeyboardKey`, down/up, timestamp, source and (on Android) the
    `TriggerDevice` that sent it.
-2. `PressPatternRecognizer`: a stream transformer turning key-down events into
-   single, double and triple presses. Optimistic by default: every press is
-   reported at once as single, double or triple according to its place in the
-   sequence, so the consumer undoes what it did for the earlier presses. Pass
-   `optimistic: false` to wait the window instead.
+2. `PressPatternRecognizer`: a stream transformer turning key events into
+   single, double, triple and long presses. A long press is a key held for
+   500 ms, reported while still held; it ends its sequence. Optimistic by
+   default: every key-down is reported at once as single, double or triple
+   according to its place in the sequence, so the consumer undoes what it did
+   for the earlier presses when a double, triple or long press follows. Pass
+   `optimistic: false` to report once, after release and the window, so
+   nothing ever has to be undone at the price of a short delay.
 3. `Binding<A>`: a map from `PressSpec` (key plus press kind) to your action
    type. `binding.bind(patterns)` is a `Stream<A>`.
 4. `package:hardware_triggers/riverpod.dart`: ready providers for the above
@@ -80,20 +83,34 @@ intercepts `dispatchKeyEvent` there, before Flutter's view. No change to
 `MainActivity` is needed. Device info comes from the `InputDevice` of the
 event; `isExternal` needs Android 10 and is null below that.
 
-**iOS / iPadOS, not registered**: the Swift side in `ios/` is written but has
-never been compiled (no Mac yet), so the pubspec registers Android only and an
-iOS build pulls in no native code from this package. There
-`isInterceptSupported()` is false, `connectedDevices()` is empty and
-`startIntercepting` is a no-op; only the Flutter key path delivers events.
-Once verified, restore the `ios:` entry under `flutter.plugin.platforms`.
-The design: iOS never hands volume keys to apps and hides
+**iOS / iPadOS, compiles, unverified on a device**: CI builds the Swift side
+on a macOS runner, but nobody has run it on an iPhone yet; see the checklist
+below. iOS never hands volume keys to apps and hides
 paired HID devices from them, so the plugin watches
-`AVAudioSession.outputVolume`. A rise is Volume Up, a drop is Volume Down.
+`AVAudioSession.outputVolume`. A held button makes iOS step the volume
+repeatedly; the first step is reported as key-down and key-up follows once no
+step has arrived for 300 ms, so holds reach the Dart recogniser as real
+down/up pairs. A rise is Volume Up, a drop is Volume Down.
 Under `consume` a hidden `MPVolumeView` sets the level back to a baseline
 (kept between 10% and 90% so a press is always detectable) and keeps the
 system popup away. Device info is never available, so `externalOnly` rules
 match nothing, and `connectedDevices` is empty. Keyboard-mode remotes work on
 iOS through the Flutter key path without any of this.
+
+### iOS device checklist
+
+To be run once on an iPhone with the AB Shutter3 paired, from a Mac with
+Xcode. Record the outcome in the catalog entry and in this README.
+
+1. Scoreboard: single press scores, double press flips, triple press undoes.
+2. Scoreboard: hold for two seconds resets the Set once; the release does
+   nothing more. If the hold only scores a point, iOS does not auto-repeat
+   the volume for the shutter and the long press is Android-only.
+3. Scoreboard: the system volume popup never appears while the board is open,
+   and presses keep working at the volume limits (the baseline reset).
+4. Scoreboard: on the home screen the shutter changes the volume as usual.
+5. Redrive: the button does nothing anywhere, and the settings screen says the
+   platform is unsupported for it.
 
 ## Wire format
 

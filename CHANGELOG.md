@@ -1,3 +1,11 @@
+## 0.4.0
+
+- Long press as a fourth Press Kind: a key held for `longPressThreshold` (500 ms), reported while still held. A long press ends its sequence.
+- Delayed mode now reports after the key is released, so a hold never produces a single first.
+- Catalog buttons list their reliable Press Kinds per platform.
+- iOS: a held button becomes a real key-down/key-up pair from the repeated volume steps. iOS is registered again; CI compiles it on macOS, behaviour on a device is still unverified.
+- CI: analyze and test on Ubuntu, throwaway-app compiles for Android and iOS.
+
 ## 0.3.0
 
 - `TriggerCatalog`: verified accessories with what each button sends. First entry: AB Shutter3.

@@ -8,11 +8,17 @@ void main() {
     final entry = TriggerCatalog.lookup(shutter);
     expect(entry, same(TriggerCatalog.abShutter3));
     expect(entry!.buttons.single.key, LogicalKeyboardKey.audioVolumeUp);
-    expect(entry.buttons.single.reliableKinds, PressKind.values.toSet());
+    final button = entry.buttons.single;
+    expect(button.reliableOn(TargetPlatform.android), PressKind.values.toSet());
+    expect(button.reliableOn(TargetPlatform.iOS), isEmpty);
   });
 
   test('name matching ignores case and padding', () {
-    const padded = TriggerDevice(id: 7, name: ' ab shutter3 ', isExternal: true);
+    const padded = TriggerDevice(
+      id: 7,
+      name: ' ab shutter3 ',
+      isExternal: true,
+    );
     expect(TriggerCatalog.lookup(padded), isNotNull);
   });
 

@@ -4,9 +4,10 @@ import 'package:flutter/services.dart';
 
 import 'input_event.dart';
 
-enum PressKind { single, double, triple }
+enum PressKind { single, double, triple, long }
 
-/// A single or double press of one key, recognised from Input Events.
+/// A single, double, triple or long press of one key, recognised from Input
+/// Events.
 class PressPattern {
   const PressPattern({
     required this.key,
@@ -18,7 +19,8 @@ class PressPattern {
   final LogicalKeyboardKey key;
   final PressKind kind;
 
-  /// Time of the press that completed the pattern.
+  /// Time of the press that completed the pattern. For a long press, the
+  /// moment the hold crossed the threshold.
   final DateTime at;
   final TriggerDevice? device;
 
@@ -37,25 +39,36 @@ class PressPattern {
   String toString() => 'PressPattern(${key.debugName}, $kind, $at, $device)';
 }
 
-/// Turns key-down Input Events into Press Patterns. Key-up events and other
-/// keys' presses in between are ignored. Presses of one key count as a
-/// sequence while each follows the previous within [pressWindow]; a sequence
-/// ends after a triple press, so a fourth quick press starts a new one.
+/// Turns Input Events into Press Patterns. Other keys' presses in between are
+/// ignored. Presses of one key count as a sequence while each key-down
+/// follows the previous within [pressWindow]; a sequence ends after a triple
+/// press, so a fourth quick press starts a new one.
 ///
-/// Optimistic (the default): every press is reported at once, as single,
-/// double or triple according to its place in the sequence. The consumer
-/// undoes what it did for the earlier presses. No press is ever delayed.
+/// A key held down for [longPressThreshold] is a long press, reported the
+/// moment the threshold passes, while the key is still down. A long press
+/// ends its sequence: the release reports nothing and does not count toward
+/// a double.
 ///
-/// Delayed: a sequence is held until [pressWindow] passes without another
-/// press, or until it reaches a triple, and is then reported once.
+/// Optimistic (the default): every key-down is reported at once, as single,
+/// double or triple according to its place in the sequence, and a long press
+/// follows later if the key stays down. The consumer undoes what it did for
+/// the earlier reports. No press is ever delayed.
+///
+/// Delayed: a sequence is reported once, after the key is released and
+/// [pressWindow] has passed since its last key-down (so a double can still
+/// follow), or at once on reaching a triple. A release after a long press
+/// reports nothing. Nothing ever has to be undone, at the price of a short
+/// delay.
 class PressPatternRecognizer
     extends StreamTransformerBase<InputEvent, PressPattern> {
   const PressPatternRecognizer({
     this.pressWindow = const Duration(milliseconds: 350),
+    this.longPressThreshold = const Duration(milliseconds: 500),
     this.optimistic = true,
   });
 
   final Duration pressWindow;
+  final Duration longPressThreshold;
   final bool optimistic;
 
   static const _maxPresses = 3;
@@ -70,6 +83,8 @@ class PressPatternRecognizer
   Stream<PressPattern> bind(Stream<InputEvent> stream) {
     final sequences = <LogicalKeyboardKey, ({int count, InputEvent last})>{};
     final pending = <LogicalKeyboardKey, Timer>{};
+    final holds = <LogicalKeyboardKey, Timer>{};
+    final heldLong = <LogicalKeyboardKey>{};
     late final StreamController<PressPattern> controller;
     StreamSubscription<InputEvent>? subscription;
 
@@ -91,10 +106,26 @@ class PressPatternRecognizer
       return count;
     }
 
-    void onEvent(InputEvent event) {
-      if (event.phase != KeyPhase.down) return;
+    void onDown(InputEvent event) {
       final key = event.key;
+      heldLong.remove(key);
       final count = advance(event);
+
+      holds.remove(key)?.cancel();
+      holds[key] = Timer(longPressThreshold, () {
+        holds.remove(key);
+        heldLong.add(key);
+        pending.remove(key)?.cancel();
+        sequences.remove(key);
+        controller.add(
+          PressPattern(
+            key: key,
+            kind: PressKind.long,
+            at: event.at.add(longPressThreshold),
+            device: event.device,
+          ),
+        );
+      });
 
       if (optimistic) {
         controller.add(pattern(event, count));
@@ -103,13 +134,39 @@ class PressPatternRecognizer
 
       pending.remove(key)?.cancel();
       if (count == _maxPresses) {
+        holds.remove(key)?.cancel();
         controller.add(pattern(event, count));
-        return;
       }
-      pending[key] = Timer(pressWindow, () {
-        pending.remove(key);
-        controller.add(pattern(event, count));
-      });
+    }
+
+    void onUp(InputEvent event) {
+      final key = event.key;
+      holds.remove(key)?.cancel();
+      if (heldLong.remove(key) || optimistic) return;
+
+      final sequence = sequences[key];
+      if (sequence == null || sequence.count == _maxPresses) return;
+      final remaining = pressWindow - event.at.difference(sequence.last.at);
+      pending[key] = Timer(
+        remaining.isNegative ? Duration.zero : remaining,
+        () {
+          pending.remove(key);
+          controller.add(pattern(sequence.last, sequence.count));
+        },
+      );
+    }
+
+    void onEvent(InputEvent event) => switch (event.phase) {
+      KeyPhase.down => onDown(event),
+      KeyPhase.up => onUp(event),
+    };
+
+    void cancelTimers() {
+      for (final timer in [...pending.values, ...holds.values]) {
+        timer.cancel();
+      }
+      pending.clear();
+      holds.clear();
     }
 
     controller = StreamController<PressPattern>(
@@ -117,16 +174,16 @@ class PressPatternRecognizer
         subscription = stream.listen(
           onEvent,
           onError: controller.addError,
-          onDone: controller.close,
+          onDone: () {
+            cancelTimers();
+            controller.close();
+          },
         );
       },
       onPause: () => subscription?.pause(),
       onResume: () => subscription?.resume(),
       onCancel: () {
-        for (final timer in pending.values) {
-          timer.cancel();
-        }
-        pending.clear();
+        cancelTimers();
         return subscription?.cancel();
       },
     );

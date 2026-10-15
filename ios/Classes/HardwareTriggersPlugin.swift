@@ -9,7 +9,12 @@ import UIKit
 /// rule the level is set back to a baseline through a hidden MPVolumeView,
 /// which also keeps the system volume popup away.
 ///
-/// UNVERIFIED: written without a Mac to compile or run it. See the README.
+/// A held button makes iOS step the volume repeatedly. The first step is
+/// reported as key-down; key-up follows once no step has arrived for
+/// `holdGap`. A quick press is therefore a down/up pair `holdGap` apart, and
+/// a hold a longer one, so the Dart recogniser needs no iOS special case.
+///
+/// UNVERIFIED on a device. Compiles in CI; behaviour awaits the Mac mini.
 public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   private struct Rule {
     let code: Int
@@ -20,12 +25,14 @@ public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
   private static let volumeUpCode = 24
   private static let volumeDownCode = 25
   private static let baselineRange: ClosedRange<Float> = 0.1...0.9
+  private static let holdGap: TimeInterval = 0.3
 
   private var sink: FlutterEventSink?
   private var rules: [Rule] = []
   private var observation: NSKeyValueObservation?
   private var volumeView: MPVolumeView?
   private var baseline: Float = 0.5
+  private var holdTimers: [Int: Timer] = [:]
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = HardwareTriggersPlugin()
@@ -100,7 +107,11 @@ public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     }
 
     observation = session.observe(\.outputVolume, options: [.old, .new]) { [weak self] _, change in
-      self?.onVolumeChanged(old: change.oldValue, new: change.newValue)
+      let old = change.oldValue
+      let new = change.newValue
+      DispatchQueue.main.async {
+        self?.onVolumeChanged(old: old, new: new)
+      }
     }
   }
 
@@ -109,8 +120,13 @@ public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     observation = nil
     volumeView?.removeFromSuperview()
     volumeView = nil
+    for timer in holdTimers.values {
+      timer.invalidate()
+    }
+    holdTimers.removeAll()
   }
 
+  /// Runs on the main queue.
   private func onVolumeChanged(old: Float?, new: Float?) {
     guard let old = old, let new = new, old != new else { return }
     // Our own restore to the baseline is not a press.
@@ -121,9 +137,16 @@ public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     // Device identity is unknown on iOS, so an external-only rule matches nothing.
     if rule.externalOnly { return }
 
-    let now = Int(Date().timeIntervalSince1970 * 1000)
-    emit(code: code, phase: "down", timestamp: now)
-    emit(code: code, phase: "up", timestamp: now)
+    if let timer = holdTimers[code] {
+      timer.invalidate()
+    } else {
+      emit(code: code, phase: "down", timestamp: Self.nowMillis())
+    }
+    holdTimers[code] = Timer.scheduledTimer(withTimeInterval: Self.holdGap, repeats: false) { [weak self] _ in
+      guard let self = self else { return }
+      self.holdTimers[code] = nil
+      self.emit(code: code, phase: "up", timestamp: Self.nowMillis())
+    }
 
     if rule.consume {
       setSystemVolume(baseline)
@@ -141,6 +164,10 @@ public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
       "deviceName": NSNull(),
       "isExternal": NSNull(),
     ])
+  }
+
+  private static func nowMillis() -> Int {
+    Int(Date().timeIntervalSince1970 * 1000)
   }
 
   private func setSystemVolume(_ value: Float) {
