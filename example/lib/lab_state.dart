@@ -67,6 +67,7 @@ class DeviceSummary {
     this.buttons = const {},
     this.pointerClicks = 0,
     this.pointerScrolls = 0,
+    this.gestures = const {},
   });
 
   /// Groups events: the device id, or [unknownDeviceKey] for events without
@@ -79,7 +80,14 @@ class DeviceSummary {
   final int pointerClicks;
   final int pointerScrolls;
 
+  /// Pointer gestures seen, described ("tap at 540,1180", "swipe up ~400 px")
+  /// with how often each occurred. A remote whose buttons act as a stylus or
+  /// mouse shows up here instead of under [buttons].
+  final Map<String, int> gestures;
+
   static const unknownDeviceKey = 'unknown';
+
+  bool get hasPointerInput => pointerClicks > 0 || pointerScrolls > 0;
 
   CatalogEntry? get catalogEntry =>
       device == null ? null : TriggerCatalog.lookup(device!);
@@ -91,6 +99,7 @@ class DeviceSummary {
     Map<LogicalKeyboardKey, ButtonRow>? buttons,
     int? pointerClicks,
     int? pointerScrolls,
+    Map<String, int>? gestures,
   }) => DeviceSummary(
     deviceKey: deviceKey,
     device: device ?? this.device,
@@ -99,6 +108,7 @@ class DeviceSummary {
     buttons: buttons ?? this.buttons,
     pointerClicks: pointerClicks ?? this.pointerClicks,
     pointerScrolls: pointerScrolls ?? this.pointerScrolls,
+    gestures: gestures ?? this.gestures,
   );
 }
 

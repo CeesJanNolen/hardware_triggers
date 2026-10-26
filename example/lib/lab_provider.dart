@@ -14,6 +14,7 @@ import 'lab_state.dart';
 /// log and the per-device summaries.
 class LabNotifier extends Notifier<LabState> {
   final _lastDown = <String, DateTime>{};
+  final _pointerDowns = <int, PointerDownEvent>{};
 
   @override
   LabState build() {
@@ -105,45 +106,113 @@ class LabNotifier extends Notifier<LabState> {
     ),
   );
 
-  /// Mouse-style pointer signals from the whole screen. Touches are the user
-  /// working the lab itself and are not logged.
+  /// Mouse- and stylus-style pointer signals from the whole screen. Touches
+  /// are the user working the lab itself and are not logged. A press is
+  /// described on release: a tap at a position, or a swipe with its
+  /// direction and length, so the buttons of a remote that acts as a pointer
+  /// can be told apart.
   void onPointer(PointerEvent event) {
     if (event.kind == PointerDeviceKind.touch) return;
-    final summary = _summaryFor(DeviceSummary.unknownDeviceKey, null);
+    final deviceKey = 'pointer-${event.kind.name}-${event.device}';
+    final summary =
+        state.summaries[deviceKey] ??
+        DeviceSummary(
+          deviceKey: deviceKey,
+          device: null,
+          entryName: 'Pointer (${event.kind.name}) ${event.device}',
+        );
     if (event is PointerDownEvent) {
+      _pointerDowns[event.pointer] = event;
       _put(summary.copyWith(pointerClicks: summary.pointerClicks + 1));
       _add(
         LogLine(
           at: DateTime.now(),
           kind: LogKind.pointer,
-          deviceKey: DeviceSummary.unknownDeviceKey,
+          deviceKey: deviceKey,
           text:
-              '● pointer down, ${event.kind.name}, buttons ${event.buttons}'
-              ' (device ${event.device})',
+              '● ${event.kind.name} down at ${_pos(event.position)}, '
+              'buttons ${event.buttons} (device ${event.device})',
         ),
       );
     } else if (event is PointerUpEvent) {
+      final down = _pointerDowns.remove(event.pointer);
+      final held = down == null ? null : event.timeStamp - down.timeStamp;
+      final gesture = down == null
+          ? 'release at ${_pos(event.position)}'
+          : _gesture(down.position, event.position);
+      _put(summary.copyWith(gestures: _count(summary.gestures, gesture)));
       _add(
         LogLine(
           at: DateTime.now(),
           kind: LogKind.pointer,
-          deviceKey: DeviceSummary.unknownDeviceKey,
-          text: '○ pointer up, ${event.kind.name}',
+          deviceKey: deviceKey,
+          text:
+              '○ ${event.kind.name} up: $gesture'
+              '${held == null ? '' : ' after ${held.inMilliseconds} ms'}',
+        ),
+      );
+    } else if (event is PointerCancelEvent) {
+      // Android takes a gesture away from the app when the system claims it,
+      // such as a swipe up from the bottom edge under gesture navigation.
+      final down = _pointerDowns.remove(event.pointer);
+      final gesture = down == null
+          ? 'cancelled at ${_pos(event.position)}'
+          : '${_gesture(down.position, event.position)}, cancelled by the system';
+      _put(summary.copyWith(gestures: _count(summary.gestures, gesture)));
+      _add(
+        LogLine(
+          at: DateTime.now(),
+          kind: LogKind.pointer,
+          deviceKey: deviceKey,
+          text: '✕ ${event.kind.name} $gesture',
         ),
       );
     } else if (event is PointerScrollEvent) {
-      _put(summary.copyWith(pointerScrolls: summary.pointerScrolls + 1));
+      final gesture = 'scroll ${event.scrollDelta.dy < 0 ? 'up' : 'down'}';
+      _put(
+        summary.copyWith(
+          pointerScrolls: summary.pointerScrolls + 1,
+          gestures: _count(summary.gestures, gesture),
+        ),
+      );
       _add(
         LogLine(
           at: DateTime.now(),
           kind: LogKind.pointer,
-          deviceKey: DeviceSummary.unknownDeviceKey,
+          deviceKey: deviceKey,
           text:
-              '↕ scroll ${event.scrollDelta.dy.toStringAsFixed(0)}'
-              ' (device ${event.device})',
+              '↕ $gesture ${event.scrollDelta.dy.abs().toStringAsFixed(0)}'
+              ' at ${_pos(event.position)} (device ${event.device})',
         ),
       );
     }
+  }
+
+  static Map<String, int> _count(Map<String, int> counts, String key) => {
+    ...counts,
+    key: (counts[key] ?? 0) + 1,
+  };
+
+  static String _pos(Offset p) =>
+      '${p.dx.toStringAsFixed(0)},${p.dy.toStringAsFixed(0)}';
+
+  /// Positions are rounded to 20 px so repeated presses of one button fold
+  /// into one gesture.
+  static String _gesture(Offset from, Offset to) {
+    final delta = to - from;
+    if (delta.distance < 20) {
+      final rounded = Offset(
+        (from.dx / 20).round() * 20,
+        (from.dy / 20).round() * 20,
+      );
+      return 'tap at ${_pos(rounded)}';
+    }
+    final horizontal = delta.dx.abs() > delta.dy.abs();
+    final direction = horizontal
+        ? (delta.dx > 0 ? 'right' : 'left')
+        : (delta.dy > 0 ? 'down' : 'up');
+    final length = ((delta.distance / 50).round() * 50).toStringAsFixed(0);
+    return 'swipe $direction ~$length px';
   }
 
   // Editing

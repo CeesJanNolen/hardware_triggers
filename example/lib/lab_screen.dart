@@ -19,6 +19,7 @@ class LabScreen extends ConsumerWidget {
       behavior: HitTestBehavior.translucent,
       onPointerDown: notifier.onPointer,
       onPointerUp: notifier.onPointer,
+      onPointerCancel: notifier.onPointer,
       onPointerSignal: notifier.onPointer,
       child: Scaffold(
         appBar: AppBar(
@@ -281,7 +282,10 @@ class _SummaryCard extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               device == null
-                  ? 'No device info: Flutter key path or injected input.'
+                  ? (summary.hasPointerInput
+                        ? 'A pointer device as Flutter sees it; Android does '
+                              'not say which Trigger it is.'
+                        : 'No device info: Flutter key path or injected input.')
                   : 'Reports as "${device.name}", id ${device.id}'
                         '${device.hasIdentity ? ', vendor ${_hex(device.vendorId!)}, product ${_hex(device.productId!)}' : ', no vendor/product id'}'
                         '${switch (device.isExternal) {
@@ -292,13 +296,13 @@ class _SummaryCard extends ConsumerWidget {
                         '${known == null ? '' : '. Already in the catalog as ${known.name}.'}',
               style: theme.textTheme.bodySmall,
             ),
-            if (summary.pointerClicks > 0 || summary.pointerScrolls > 0)
+            if (summary.hasPointerInput)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Pointer input seen: ${summary.pointerClicks} clicks, '
-                  '${summary.pointerScrolls} scrolls. Not a key; goes into '
-                  'the notes.',
+                  'Pointer input, not keys: ${summary.pointerClicks} presses, '
+                  '${summary.pointerScrolls} scrolls. Goes into the notes.\n'
+                  '${summary.gestures.entries.map((e) => '${e.value}x ${e.key}').join('\n')}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.secondary,
                   ),

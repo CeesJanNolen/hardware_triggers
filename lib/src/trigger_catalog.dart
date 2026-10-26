@@ -96,7 +96,47 @@ class TriggerCatalog {
         'from the volume rocker of the phone or tablet.',
   );
 
-  static final List<CatalogEntry> entries = List.unmodifiable([abShutter3]);
+  /// "Beauty-R1": a TikTok-style ring remote with up, down, left, right,
+  /// ok, camera and a side button. Verified with Trigger Lab on Android 14
+  /// (Galaxy Tab A8). Only the camera button is a key, and it alternates:
+  /// one press sends Volume Down, the next Volume Up. The other buttons act
+  /// as a stylus touching the screen at fixed spots and never reach the
+  /// package.
+  static final beautyR1 = CatalogEntry(
+    name: 'Beauty-R1',
+    vendorId: 0x0e05,
+    productId: 0x0a00,
+    buttons: [
+      CatalogButton(
+        label: 'camera',
+        key: LogicalKeyboardKey.audioVolumeDown,
+        reliable: const {
+          TargetPlatform.android: {PressKind.single},
+        },
+      ),
+      CatalogButton(
+        label: 'camera (every other press)',
+        key: LogicalKeyboardKey.audioVolumeUp,
+        reliable: const {
+          TargetPlatform.android: {PressKind.single},
+        },
+      ),
+    ],
+    notes:
+        'Pairs as a keyboard plus a stylus. The camera button alternates '
+        'between Volume Down and Volume Up on successive presses, so bind '
+        'both keys to the same Action. A double press arrives as one press '
+        'of each key and a hold is a short press: only single presses are '
+        'usable. Up, left, right, ok and the side button act as a stylus on '
+        'the screen (swipe down, swipe right, swipe left, tap, tap at '
+        'another spot), not as keys. Down is a swipe up from the bottom '
+        'edge, which Android gesture navigation takes for itself.',
+  );
+
+  static final List<CatalogEntry> entries = List.unmodifiable([
+    abShutter3,
+    beautyR1,
+  ]);
 
   /// The catalog entry for [device], or null for an unknown Trigger.
   static CatalogEntry? lookup(TriggerDevice device) {

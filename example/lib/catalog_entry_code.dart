@@ -13,10 +13,9 @@ String catalogEntryCode(DeviceSummary summary) {
     ..sort((a, b) => a.label.compareTo(b.label));
   final notes = [
     if (summary.notes.trim().isNotEmpty) summary.notes.trim(),
-    if (summary.pointerClicks > 0 || summary.pointerScrolls > 0)
-      'Also sends pointer input (${summary.pointerClicks} clicks, '
-          '${summary.pointerScrolls} scrolls seen), which the package '
-          'does not report.',
+    if (summary.hasPointerInput)
+      'Sends pointer input, which the package does not report: '
+          '${summary.gestures.entries.map((e) => '${e.key} (${e.value}x)').join(', ')}.',
   ].join(' ');
 
   final b = StringBuffer()

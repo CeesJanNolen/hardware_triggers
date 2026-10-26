@@ -22,6 +22,25 @@ void main() {
     expect(TriggerCatalog.lookup(padded), isNotNull);
   });
 
+  test('the Beauty-R1 is found by its identity and is single-press only', () {
+    const ring = TriggerDevice(
+      id: 11,
+      name: 'Beauty-R1',
+      isExternal: true,
+      vendorId: 0x0e05,
+      productId: 0x0a00,
+    );
+    final entry = TriggerCatalog.lookup(ring);
+    expect(entry, same(TriggerCatalog.beautyR1));
+    expect(entry!.buttons.map((b) => b.key), [
+      LogicalKeyboardKey.audioVolumeDown,
+      LogicalKeyboardKey.audioVolumeUp,
+    ]);
+    for (final button in entry.buttons) {
+      expect(button.reliableOn(TargetPlatform.android), {PressKind.single});
+    }
+  });
+
   test('an unknown device has no entry', () {
     const rocker = TriggerDevice(id: 0, name: 'gpio-keys', isExternal: false);
     expect(TriggerCatalog.lookup(rocker), isNull);
