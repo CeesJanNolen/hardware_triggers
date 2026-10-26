@@ -87,7 +87,7 @@ void main() {
         productId: 0x0a00,
       );
       expect(TriggerCatalog.beautyR1.matches(m9), isFalse);
-      expect(TriggerCatalog.lookup(m9), isNull);
+      expect(TriggerCatalog.lookup(m9), same(TriggerCatalog.m9));
     });
 
     test('an entry without ids matches by name whatever the device has', () {

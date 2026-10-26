@@ -26,7 +26,7 @@ Each layer works without the one above it.
    plus `interceptProvider(rules)`, which intercepts while watched.
 
 `TriggerCatalog` lists the accessories verified against the package (today:
-the AB Shutter3 shutter button and the Beauty-R1 ring remote) with what each
+the AB Shutter3 shutter button and the Beauty-R1 and M9 ring remotes) with what each
 button sends and which Press Kinds are reliable. Show it in a settings screen so users know what is
 supported; `TriggerCatalog.lookup(device)` tells whether a connected device is
 one of them. Other devices may or may not work depending on what they send.
