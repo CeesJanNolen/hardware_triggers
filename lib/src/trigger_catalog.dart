@@ -169,7 +169,8 @@ class TriggerCatalog {
         'left, right, ok and settings act as a stylus on the screen (swipe '
         'down, swipe right, swipe left, tap, tap at another spot), not as '
         'keys. Holding ok starts an endless stream of taps, about five a '
-        'second, that outlives the release. Down is a swipe up from the '
+        'second, that outlives the release; switching the remote off with '
+        'its power button ends it. Down is a swipe up from the '
         'bottom edge, which Android gesture navigation takes for itself. '
         'Home is the system Home key and never reaches an app. Power '
         'switches the remote itself off.',
