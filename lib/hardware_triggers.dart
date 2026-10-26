@@ -9,6 +9,10 @@ export 'src/input_event.dart';
 export 'src/intercept_rule.dart';
 export 'src/key_codes.dart';
 export 'src/platform_interface.dart'
-    show HardwareTriggersPlatform, NativeKeyEvent;
+    show
+        HardwareTriggersPlatform,
+        MethodChannelHardwareTriggers,
+        NativeKeyEvent,
+        anyKeyCode;
 export 'src/press_pattern.dart';
 export 'src/trigger_catalog.dart';

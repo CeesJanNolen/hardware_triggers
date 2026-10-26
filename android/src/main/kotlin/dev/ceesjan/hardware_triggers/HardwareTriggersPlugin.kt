@@ -122,12 +122,26 @@ class HardwareTriggersPlugin :
     }
 
     private inner class KeyInterceptingCallback(val base: Window.Callback) : Window.Callback by base {
+        /**
+         * The last event reported. When Flutter does not handle a key it
+         * redispatches the same KeyEvent instance through the window, which
+         * is how the system still gets to act on an observed key; that second
+         * pass is not a second press.
+         */
+        private var lastReported: KeyEvent? = null
+
         override fun dispatchKeyEvent(event: KeyEvent): Boolean {
             val rule = rules.firstOrNull { it.code == event.keyCode }
+                ?: rules.firstOrNull { it.code == ANY_KEY }
                 ?: return base.dispatchKeyEvent(event)
             val device = event.device
             val external = isExternal(device)
             if (rule.externalOnly && external != true) return base.dispatchKeyEvent(event)
+            // A fallback is a key Android synthesises from one nobody handled
+            // (Enter from an unhandled D-pad centre); the Trigger never sent it.
+            if (event.flags and KeyEvent.FLAG_FALLBACK != 0) return base.dispatchKeyEvent(event)
+            if (event === lastReported) return base.dispatchKeyEvent(event)
+            lastReported = event
 
             if (event.repeatCount == 0) {
                 val phase = when (event.action) {
@@ -144,6 +158,8 @@ class HardwareTriggersPlugin :
                             "deviceId" to device?.id,
                             "deviceName" to device?.name,
                             "isExternal" to external,
+                            "vendorId" to device?.vendorId,
+                            "productId" to device?.productId,
                         )
                     )
                 }
@@ -166,10 +182,14 @@ class HardwareTriggersPlugin :
                     "id" to device.id,
                     "name" to device.name,
                     "isExternal" to isExternal(device),
+                    "vendorId" to device.vendorId,
+                    "productId" to device.productId,
                 )
             }
 
     private companion object {
+        /** Wire code of a catch-all rule; no Android key code is negative. */
+        const val ANY_KEY = -1
         const val KEY_SOURCES =
             InputDevice.SOURCE_KEYBOARD or InputDevice.SOURCE_DPAD or InputDevice.SOURCE_GAMEPAD
     }

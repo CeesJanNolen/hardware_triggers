@@ -67,10 +67,9 @@ class HardwareTriggers {
 
   void _attach() {
     _keyboard.addHandler(_onFlutterKey);
-    _nativeSubscription = _platform.keyEvents.listen((native) {
-      final event = native.toInputEvent();
-      if (event != null) _controller.add(event);
-    });
+    _nativeSubscription = _platform.keyEvents.listen(
+      (native) => _controller.add(native.toInputEvent()),
+    );
   }
 
   void _detach() {
@@ -82,7 +81,7 @@ class HardwareTriggers {
   bool _onFlutterKey(KeyEvent event) {
     if (event is KeyRepeatEvent) return false;
     final key = event.logicalKey;
-    if (_activeRules.any((r) => r.key == key)) return false;
+    if (_activeRules.any((r) => r.covers(key))) return false;
     _controller.add(
       InputEvent(
         key: key,

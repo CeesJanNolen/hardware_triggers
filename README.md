@@ -30,6 +30,13 @@ the AB Shutter3 shutter button) with what each button sends and which Press
 Kinds are reliable. Show it in a settings screen so users know what is
 supported; `TriggerCatalog.lookup(device)` tells whether a connected device is
 one of them. Other devices may or may not work depending on what they send.
+An entry can carry a Trigger Identity (vendor and product id); when both the
+entry and the device have one, the ids decide the match, so two remotes that
+pair under the same name are told apart. Otherwise the name decides.
+
+To catalogue a new accessory, run Trigger Lab in `example/`: it shows every
+key the remote sends with its device, lets you label the buttons and tick the
+Press Kinds you verified, and copies a ready `CatalogEntry`.
 
 ## Interception
 
@@ -45,6 +52,12 @@ native intercept for the keys you name, with a policy each:
 is consumed while the tablet's own rocker still changes the volume. Call
 `stopIntercepting` when the screen that needs the keys goes away, or use the
 Riverpod `interceptProvider` and let it follow the screen's lifetime.
+
+`InterceptRule.any()` is a catch-all: every hardware key the window receives
+is reported natively with its device, observed by default. A rule naming a
+key wins over it, so a detection screen can swallow one key while watching
+the rest. Keys Flutter has no name for are not dropped; they become keys in
+Flutter's Android plane and `InputEvent.code` carries the raw Android code.
 
 Keys without a rule arrive through Flutter's normal key path (source
 `flutter`), so a keyboard-mode remote sending Enter or Space works everywhere
@@ -81,7 +94,9 @@ volume. Use `InterceptPolicy.observe` if the shutter should do both.
 **Android**: the plugin wraps the Activity window's `Window.Callback` and
 intercepts `dispatchKeyEvent` there, before Flutter's view. No change to
 `MainActivity` is needed. Device info comes from the `InputDevice` of the
-event; `isExternal` needs Android 10 and is null below that.
+event: name, id, vendor and product id, and `isExternal`, which needs
+Android 10 and is null below that. Home and Power are handled by the system
+before any window and are never reported.
 
 **iOS / iPadOS, compiles, unverified on a device**: CI builds the Swift side
 on a macOS runner, but nobody has run it on an iPhone yet; see the checklist

@@ -21,15 +21,13 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
-  # The native sides have no app of their own, so a throwaway app is created
-  # around the package and built. Green means the Kotlin or Swift compiles;
-  # behaviour is verified on devices, see the README.
-  android-compile:
+  # Android: the example app (Trigger Lab) is analysed, tested and built, which
+  # also compiles the Kotlin side. Behaviour is verified on devices, see the
+  # README.
+  example:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: hardware_triggers
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -39,13 +37,17 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - name: Create a throwaway app around the package
-        run: |
-          flutter create --platforms=android --org dev.ceesjan -t app ci_app
-          cd ci_app
-          flutter pub add hardware_triggers --path ../hardware_triggers
+      - run: flutter pub get
+        working-directory: example
+      - run: flutter analyze
+        working-directory: example
+      - run: flutter test
+        working-directory: example
       - run: flutter build apk --debug
-        working-directory: ci_app
+        working-directory: example
+
+  # iOS has no app of its own, so a throwaway app is created around the
+  # package and built. Green means the Swift compiles.
 
   ios-compile:
     runs-on: macos-latest

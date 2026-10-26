@@ -36,6 +36,8 @@ class CatalogEntry {
   const CatalogEntry({
     required this.name,
     required this.buttons,
+    this.vendorId,
+    this.productId,
     this.notes = '',
   });
 
@@ -43,12 +45,25 @@ class CatalogEntry {
   final String name;
   final List<CatalogButton> buttons;
 
-  /// Free text for the app's settings screen: quirks, pairing hints.
+  /// The Trigger Identity, when known. Two devices pairing under the same
+  /// name are told apart by it; see [matches].
+  final int? vendorId;
+  final int? productId;
+
+  /// Free text for the app's settings screen: quirks, pairing hints, which
+  /// mode of the remote the entry describes, buttons no app can see.
   final String notes;
 
-  /// Whether [device] is this catalogued Trigger.
-  bool matches(TriggerDevice device) =>
-      device.name.trim().toLowerCase() == name.toLowerCase();
+  bool get hasIdentity => vendorId != null && productId != null;
+
+  /// Whether [device] is this catalogued Trigger. When both the entry and the
+  /// device carry a Trigger Identity, the ids decide; otherwise the name does.
+  bool matches(TriggerDevice device) {
+    if (hasIdentity && device.hasIdentity) {
+      return device.vendorId == vendorId && device.productId == productId;
+    }
+    return device.name.trim().toLowerCase() == name.toLowerCase();
+  }
 }
 
 /// The Triggers verified against this package.

@@ -31,3 +31,7 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 /build/
 /coverage/
+
+# The example app builds into its own folder.
+/example/build/
+/example/pubspec.lock

@@ -26,6 +26,8 @@ class NativeKeyEvent {
               id: deviceId,
               name: map['deviceName'] as String? ?? '',
               isExternal: map['isExternal'] as bool?,
+              vendorId: map['vendorId'] as int?,
+              productId: map['productId'] as int?,
             ),
     );
   }
@@ -36,17 +38,18 @@ class NativeKeyEvent {
   final DateTime at;
   final TriggerDevice? device;
 
-  InputEvent? toInputEvent() {
-    final key = logicalKeyFromCode(code);
-    if (key == null) return null;
-    return InputEvent(
-      key: key,
-      phase: phase,
-      at: at,
-      source: InputSource.native,
-      device: device,
-    );
-  }
+  /// A code Flutter has no name for becomes a key in Flutter's Android
+  /// plane, the same id Flutter itself would give it.
+  InputEvent toInputEvent() => InputEvent(
+    key:
+        logicalKeyFromCode(code) ??
+        LogicalKeyboardKey(LogicalKeyboardKey.androidPlane + code),
+    phase: phase,
+    at: at,
+    source: InputSource.native,
+    device: device,
+    code: code,
+  );
 }
 
 abstract class HardwareTriggersPlatform extends PlatformInterface {
@@ -110,7 +113,7 @@ class MethodChannelHardwareTriggers extends HardwareTriggersPlatform {
       _invoke<void>('startIntercepting', {
         'rules': [
           for (final rule in rules)
-            for (final code in codesForLogicalKey(rule.key))
+            for (final code in _codesFor(rule))
               {
                 'code': code,
                 'policy': rule.policy.name,
@@ -136,7 +139,17 @@ class MethodChannelHardwareTriggers extends HardwareTriggersPlatform {
           id: d['id'] as int,
           name: d['name'] as String? ?? '',
           isExternal: d['isExternal'] as bool?,
+          vendorId: d['vendorId'] as int?,
+          productId: d['productId'] as int?,
         ),
     ];
   }
+}
+
+/// The wire code for a catch-all rule; no Android key code is negative.
+const int anyKeyCode = -1;
+
+List<int> _codesFor(InterceptRule rule) {
+  final key = rule.key;
+  return key == null ? const [anyKeyCode] : codesForLogicalKey(key);
 }
