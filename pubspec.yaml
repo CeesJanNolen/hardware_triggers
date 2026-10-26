@@ -1,6 +1,6 @@
 name: hardware_triggers
 description: "Physical key Triggers (Bluetooth shutter buttons, remotes, volume rockers) as a stream of Input Events, Press Patterns and app-defined Actions."
-version: 0.4.0
+version: 0.5.0
 homepage: https://github.com/CeesJanNolen/hardware_triggers
 
 environment:

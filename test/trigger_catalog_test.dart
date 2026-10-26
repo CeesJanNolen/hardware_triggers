@@ -90,6 +90,20 @@ void main() {
       expect(TriggerCatalog.lookup(m9), same(TriggerCatalog.m9));
     });
 
+    test('the three ring remotes share one identity and differ by name', () {
+      const names = {'Beauty-R1', 'M9', 'BLE-M3'};
+      for (final name in names) {
+        final device = TriggerDevice(
+          id: 1,
+          name: name,
+          isExternal: true,
+          vendorId: 0x0e05,
+          productId: 0x0a00,
+        );
+        expect(TriggerCatalog.lookup(device)?.name, name);
+      }
+    });
+
     test('an entry without ids matches by name whatever the device has', () {
       const device = TriggerDevice(
         id: 9,

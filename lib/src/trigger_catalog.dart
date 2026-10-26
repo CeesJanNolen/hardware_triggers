@@ -176,10 +176,45 @@ class TriggerCatalog {
         'switches the remote itself off.',
   );
 
+  /// "BLE-M3", sold as the black Yggcoo N16500: a ring remote with up,
+  /// down, left, right, ok and camera. Same chipset as the Beauty-R1 and
+  /// M9. Its camera button sends a stylus tap and the alternating key
+  /// together. Verified with Trigger Lab on Android 14 (Galaxy Tab A8).
+  static final bleM3 = CatalogEntry(
+    name: 'BLE-M3',
+    vendorId: 0x0e05,
+    productId: 0x0a00,
+    buttons: [
+      CatalogButton(
+        label: 'camera',
+        key: LogicalKeyboardKey.audioVolumeDown,
+        reliable: const {
+          TargetPlatform.android: {PressKind.single},
+        },
+      ),
+      CatalogButton(
+        label: 'camera (every other press)',
+        key: LogicalKeyboardKey.audioVolumeUp,
+        reliable: const {
+          TargetPlatform.android: {PressKind.single},
+        },
+      ),
+    ],
+    notes:
+        'Pairs as a keyboard plus a stylus. The camera button alternates '
+        'between Volume Down and Volume Up on successive presses and sends '
+        'a stylus tap with each, so bind both keys to the same Action; only '
+        'single presses are usable, a hold sends nothing more. Up, left, '
+        'right and ok act as a stylus on the screen (swipe down, swipe '
+        'right, swipe left, tap), not as keys. Down is a swipe up from the '
+        'bottom edge, which Android gesture navigation takes for itself.',
+  );
+
   static final List<CatalogEntry> entries = List.unmodifiable([
     abShutter3,
     beautyR1,
     m9,
+    bleM3,
   ]);
 
   /// The catalog entry for [device], or null for an unknown Trigger.
