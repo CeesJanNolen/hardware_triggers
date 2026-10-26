@@ -78,6 +78,18 @@ void main() {
       expect(black.matches(device), isTrue);
     });
 
+    test('a shared identity under another name is another Trigger', () {
+      const m9 = TriggerDevice(
+        id: 13,
+        name: 'M9',
+        isExternal: true,
+        vendorId: 0x0e05,
+        productId: 0x0a00,
+      );
+      expect(TriggerCatalog.beautyR1.matches(m9), isFalse);
+      expect(TriggerCatalog.lookup(m9), isNull);
+    });
+
     test('an entry without ids matches by name whatever the device has', () {
       const device = TriggerDevice(
         id: 9,

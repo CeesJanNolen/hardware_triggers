@@ -30,9 +30,11 @@ the AB Shutter3 shutter button and the Beauty-R1 ring remote) with what each
 button sends and which Press Kinds are reliable. Show it in a settings screen so users know what is
 supported; `TriggerCatalog.lookup(device)` tells whether a connected device is
 one of them. Other devices may or may not work depending on what they send.
-An entry can carry a Trigger Identity (vendor and product id); when both the
-entry and the device have one, the ids decide the match, so two remotes that
-pair under the same name are told apart. Otherwise the name decides.
+An entry can carry a Trigger Identity (vendor and product id). The name must
+always match; when both the entry and the device have an identity the ids
+must match as well, so two remotes that pair under the same name are told
+apart. Cheap remotes share generic ids across models, so ids alone never
+decide.
 
 To catalogue a new accessory, run Trigger Lab in `example/`: it shows every
 key the remote sends with its device, lets you label the buttons and tick the

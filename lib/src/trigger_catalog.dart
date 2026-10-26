@@ -46,7 +46,9 @@ class CatalogEntry {
   final List<CatalogButton> buttons;
 
   /// The Trigger Identity, when known. Two devices pairing under the same
-  /// name are told apart by it; see [matches].
+  /// name are told apart by it; see [matches]. Cheap remotes share generic
+  /// ids across different models, so an identity never stands in for the
+  /// name.
   final int? vendorId;
   final int? productId;
 
@@ -56,13 +58,15 @@ class CatalogEntry {
 
   bool get hasIdentity => vendorId != null && productId != null;
 
-  /// Whether [device] is this catalogued Trigger. When both the entry and the
-  /// device carry a Trigger Identity, the ids decide; otherwise the name does.
+  /// Whether [device] is this catalogued Trigger: the name must match, and
+  /// when both the entry and the device carry a Trigger Identity the ids
+  /// must match too.
   bool matches(TriggerDevice device) {
+    if (device.name.trim().toLowerCase() != name.toLowerCase()) return false;
     if (hasIdentity && device.hasIdentity) {
       return device.vendorId == vendorId && device.productId == productId;
     }
-    return device.name.trim().toLowerCase() == name.toLowerCase();
+    return true;
   }
 }
 
