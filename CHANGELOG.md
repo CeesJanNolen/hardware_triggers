@@ -1,3 +1,11 @@
+## 0.4.1
+
+- iOS: verified on a device (iOS 27, AB Shutter3). Presses were never seen: the audio session was `.ambient`, where with nothing playing the buttons step the ringer, which `outputVolume` does not follow. It is `.playback` now, which the mute switch also leaves alone; a playing category the app chose is kept.
+- iOS: quick presses about 180 ms apart were merged into one hold. A step within 100 ms of the previous one is the held key's repeat; a later one is a new press.
+- iOS: a level the user sets with the buttons that no rule covers becomes the baseline, so a consumed press no longer jumps back to an old level.
+- `systemVolume()` and `setSystemVolume()`: the system output volume, iOS only. A consume rule takes the volume buttons away there, so an app can offer the volume itself. Levels the app sets are not reported as presses.
+- Catalog: AB Shutter3 verified on iOS for all four Press Kinds.
+
 ## 0.4.0
 
 - Long press as a fourth Press Kind: a key held for `longPressThreshold` (500 ms), reported while still held. A long press ends its sequence.

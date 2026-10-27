@@ -53,6 +53,13 @@ class HardwareTriggers {
   Future<List<TriggerDevice>> connectedDevices() =>
       _platform.connectedDevices();
 
+  /// See [HardwareTriggersPlatform.systemVolume].
+  Future<double?> systemVolume() => _platform.systemVolume();
+
+  /// See [HardwareTriggersPlatform.setSystemVolume].
+  Future<void> setSystemVolume(double value) =>
+      _platform.setSystemVolume(value);
+
   /// Replaces any previous rules. Call [stopIntercepting] when the screen
   /// that needs the keys goes away.
   Future<void> startIntercepting(List<InterceptRule> rules) async {

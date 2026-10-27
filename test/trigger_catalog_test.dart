@@ -10,7 +10,7 @@ void main() {
     expect(entry!.buttons.single.key, LogicalKeyboardKey.audioVolumeUp);
     final button = entry.buttons.single;
     expect(button.reliableOn(TargetPlatform.android), PressKind.values.toSet());
-    expect(button.reliableOn(TargetPlatform.iOS), isEmpty);
+    expect(button.reliableOn(TargetPlatform.iOS), PressKind.values.toSet());
   });
 
   test('name matching ignores case and padding', () {

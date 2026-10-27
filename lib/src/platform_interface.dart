@@ -74,6 +74,15 @@ abstract class HardwareTriggersPlatform extends PlatformInterface {
   Future<bool> isInterceptSupported();
 
   Future<List<TriggerDevice>> connectedDevices();
+
+  /// The system output volume, 0 to 1. Null where the platform does not
+  /// offer it, which is everywhere but iOS.
+  Future<double?> systemVolume() async => null;
+
+  /// Sets the system output volume, 0 to 1. On iOS a consume rule takes the
+  /// volume buttons away, so the app offers this instead. While intercepting
+  /// the level stays within 0.1 to 0.9, where a press can still move it.
+  Future<void> setSystemVolume(double value) async {}
 }
 
 /// Talks to the native plugin. On a platform where the plugin is not
@@ -125,6 +134,13 @@ class MethodChannelHardwareTriggers extends HardwareTriggersPlatform {
   @override
   Future<bool> isInterceptSupported() async =>
       await _invoke<bool>('isInterceptSupported') ?? false;
+
+  @override
+  Future<double?> systemVolume() => _invoke<double>('systemVolume');
+
+  @override
+  Future<void> setSystemVolume(double value) =>
+      _invoke<void>('setSystemVolume', {'value': value});
 
   @override
   Future<List<TriggerDevice>> connectedDevices() async {

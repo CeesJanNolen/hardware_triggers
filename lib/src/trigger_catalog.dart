@@ -58,8 +58,9 @@ class TriggerCatalog {
   /// "AB Shutter3": the common Bluetooth camera shutter. One button, pairs
   /// as a keyboard and sends Volume Up, and keeps the key down while held.
   /// Verified on Android 14 and 17: single, double and triple presses about
-  /// 160 ms apart, and holds of two to three seconds. Not yet verified on
-  /// iOS, where the package itself is unverified.
+  /// 160 ms apart, and holds of two to three seconds. Verified on iOS 27
+  /// the same way, presses about 180 ms apart, though there it cannot be told
+  /// from the phone's own volume-up button.
   static final abShutter3 = CatalogEntry(
     name: 'AB Shutter3',
     buttons: [
@@ -73,12 +74,18 @@ class TriggerCatalog {
             PressKind.triple,
             PressKind.long,
           },
+          TargetPlatform.iOS: {
+            PressKind.single,
+            PressKind.double,
+            PressKind.triple,
+            PressKind.long,
+          },
         },
       ),
     ],
     notes:
         'Pairs as a keyboard. Needs Android 10 or newer to be told apart '
-        'from the volume rocker of the phone or tablet.',
+        'from the volume rocker of the phone or tablet; on iOS it cannot be.',
   );
 
   static final List<CatalogEntry> entries = List.unmodifiable([abShutter3]);

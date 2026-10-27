@@ -9,12 +9,18 @@ import UIKit
 /// rule the level is set back to a baseline through a hidden MPVolumeView,
 /// which also keeps the system volume popup away.
 ///
-/// A held button makes iOS step the volume repeatedly. The first step is
-/// reported as key-down; key-up follows once no step has arrived for
-/// `holdGap`. A quick press is therefore a down/up pair `holdGap` apart, and
-/// a hold a longer one, so the Dart recogniser needs no iOS special case.
+/// Each press is one volume step. A held button makes iOS repeat the step,
+/// about 330 ms after the press and then every 42 ms (measured with an AB
+/// Shutter3). A step soon after the previous one is that repeat, a later one
+/// a new press, so quick presses about 180 ms apart stay separate. Key-up
+/// follows once no repeat arrives: `repeatDelay` after a press, `releaseGap`
+/// after a repeat. A quick press is therefore a down/up pair shorter than the
+/// long press threshold, and a hold a longer one, so the Dart recogniser needs
+/// no iOS special case.
 ///
-/// UNVERIFIED on a device. Compiles in CI; behaviour awaits the Mac mini.
+/// Volume changes carry no device, so an external-only rule matches nothing.
+/// Verified on an iPhone (iOS 27) with an AB Shutter3, whose presses are
+/// volume steps like the phone's own rocker's.
 public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   private struct Rule {
     let code: Int
@@ -25,14 +31,20 @@ public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
   private static let volumeUpCode = 24
   private static let volumeDownCode = 25
   private static let baselineRange: ClosedRange<Float> = 0.1...0.9
-  private static let holdGap: TimeInterval = 0.3
+  private static let repeatGap: TimeInterval = 0.1
+  private static let repeatDelay: TimeInterval = 0.4
+  private static let releaseGap: TimeInterval = 0.15
+  /// How long volume changes after the app set the volume are its own.
+  private static let ownChangeGap: TimeInterval = 0.5
 
   private var sink: FlutterEventSink?
   private var rules: [Rule] = []
   private var observation: NSKeyValueObservation?
   private var volumeView: MPVolumeView?
   private var baseline: Float = 0.5
-  private var holdTimers: [Int: Timer] = [:]
+  private var upTimers: [Int: Timer] = [:]
+  private var lastStep: [Int: Date] = [:]
+  private var ownChangeUntil = Date.distantPast
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = HardwareTriggersPlugin()
@@ -61,6 +73,12 @@ public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
       result(nil)
     case "isInterceptSupported":
       result(true)
+    case "systemVolume":
+      result(Double(AVAudioSession.sharedInstance().outputVolume))
+    case "setSystemVolume":
+      let value = Float((call.arguments as? [String: Any])?["value"] as? Double ?? 0.5)
+      changeSystemVolume(to: value)
+      result(nil)
     case "connectedDevices":
       // iOS does not expose which HID device sent a key.
       result([])
@@ -87,19 +105,20 @@ public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     guard observation == nil else { return }
     let session = AVAudioSession.sharedInstance()
     do {
-      try session.setCategory(.ambient, options: [.mixWithOthers])
+      // Without an active playback session the buttons step the ringer,
+      // which outputVolume does not follow. .playback is also not silenced
+      // by the mute switch, unlike .ambient. A category the app chose that
+      // plays is kept.
+      if session.category != .playback && session.category != .playAndRecord {
+        try session.setCategory(.playback, options: [.mixWithOthers])
+      }
       try session.setActive(true)
     } catch {
       sink?(FlutterError(code: "audio_session", message: error.localizedDescription, details: nil))
       return
     }
 
-    if volumeView == nil {
-      let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 1, height: 1))
-      view.alpha = 0.01
-      keyWindow()?.addSubview(view)
-      volumeView = view
-    }
+    attachVolumeView()
 
     baseline = Self.clampToBaseline(session.outputVolume)
     if rules.contains(where: { $0.consume }) {
@@ -120,31 +139,46 @@ public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     observation = nil
     volumeView?.removeFromSuperview()
     volumeView = nil
-    for timer in holdTimers.values {
+    for timer in upTimers.values {
       timer.invalidate()
     }
-    holdTimers.removeAll()
+    upTimers.removeAll()
+    lastStep.removeAll()
   }
 
   /// Runs on the main queue.
   private func onVolumeChanged(old: Float?, new: Float?) {
     guard let old = old, let new = new, old != new else { return }
-    // Our own restore to the baseline is not a press.
-    if abs(new - baseline) < 0.001 { return }
+    // Our own restore to the baseline is not a press, and neither is a level
+    // the app set: a dragged slider sets several in a row, and a late one no
+    // longer matches the baseline.
+    if abs(new - baseline) < 0.001 || Date() < ownChangeUntil { return }
 
     let code = new > old ? Self.volumeUpCode : Self.volumeDownCode
-    guard let rule = rules.first(where: { $0.code == code }) else { return }
+    guard let rule = rules.first(where: { $0.code == code }) else {
+      // The user set this level on purpose; a consumed press returns to it.
+      baseline = Self.clampToBaseline(new)
+      return
+    }
     // Device identity is unknown on iOS, so an external-only rule matches nothing.
     if rule.externalOnly { return }
 
-    if let timer = holdTimers[code] {
-      timer.invalidate()
-    } else {
+    let now = Date()
+    let isRepeat = lastStep[code].map { now.timeIntervalSince($0) < Self.repeatGap } ?? false
+    lastStep[code] = now
+    let pendingUp = upTimers[code]
+    pendingUp?.invalidate()
+    if !isRepeat {
+      // The previous press was released before this one.
+      if pendingUp != nil {
+        emit(code: code, phase: "up", timestamp: Self.nowMillis())
+      }
       emit(code: code, phase: "down", timestamp: Self.nowMillis())
     }
-    holdTimers[code] = Timer.scheduledTimer(withTimeInterval: Self.holdGap, repeats: false) { [weak self] _ in
+    let wait = isRepeat ? Self.releaseGap : Self.repeatDelay
+    upTimers[code] = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in
       guard let self = self else { return }
-      self.holdTimers[code] = nil
+      self.upTimers[code] = nil
       self.emit(code: code, phase: "up", timestamp: Self.nowMillis())
     }
 
@@ -168,6 +202,35 @@ public class HardwareTriggersPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
 
   private static func nowMillis() -> Int {
     Int(Date().timeIntervalSince1970 * 1000)
+  }
+
+  /// Sets the system volume on the app's behalf. While observing, the level
+  /// becomes the baseline, so it is not mistaken for a press, and is kept
+  /// inside the range a press can still move.
+  private func changeSystemVolume(to value: Float) {
+    if observation != nil {
+      ownChangeUntil = Date().addingTimeInterval(Self.ownChangeGap)
+      baseline = Self.clampToBaseline(value)
+      setSystemVolume(baseline)
+    } else {
+      attachVolumeView()
+      setSystemVolume(min(max(value, 0), 1))
+      // An attached MPVolumeView hides the system volume popup; only keep it
+      // while observing.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        guard let self = self, self.observation == nil else { return }
+        self.volumeView?.removeFromSuperview()
+        self.volumeView = nil
+      }
+    }
+  }
+
+  private func attachVolumeView() {
+    guard volumeView == nil else { return }
+    let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 1, height: 1))
+    view.alpha = 0.01
+    keyWindow()?.addSubview(view)
+    volumeView = view
   }
 
   private func setSystemVolume(_ value: Float) {
